@@ -1,0 +1,20 @@
+Option Explicit
+
+'ファイル名
+Public fileName As String
+
+'表示倍率
+Public Zoom As String
+
+'アクティブセル
+Public ActiveCell As String
+
+'印刷サイズ
+Public PrintSize As String
+
+'印刷の向き
+Public PrintDirection As String
+
+'項目
+Public ColumnDetails As Collection
+

@@ -1,0 +1,10 @@
+Option Explicit
+
+'表示タイプ
+Public DisplayType As String
+
+'配置タイプ
+Public PlaceType As String
+
+'改行タイプ
+Public LineBreakType As String

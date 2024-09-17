@@ -1,0 +1,313 @@
+Option Explicit
+
+Public Const INPUT_SHEET As String = "Input"
+
+'入力位置
+Public Const INPUT_TYPE_POSITION As String = "B2"
+Public Const INPUT_PATH_POSITION As String = "B3"
+Public Const TARGET_SHEET_POSITION As String = "B4"
+Public Const HEADER_ROW_NUM_POSITION As String = "B5"
+
+'出力位置
+Public Const TEMPLATE_SHEET As String = "ResultTemplate"
+Public Const FILE_NAME_POSITION As String = "B2"
+Public Const ZOOM_VALUE_POSITION As String = "B5"
+Public Const ACTIVE_CELL_POSITION As String = "B6"
+Public Const PRINT_SIZE_POSITION As String = "B7"
+Public Const PRINT_DIRECTION_POSITION As String = "B8"
+Public Const COLUMN_START_POSITION As String = "A13"
+
+Sub Execute()
+
+    '画面値の読み込み
+    Dim inputType As String: inputType = Range(INPUT_TYPE_POSITION).Text
+    Dim inputPath As String: inputPath = Range(INPUT_PATH_POSITION).Text
+    Dim targetSheet As String: targetSheet = Range(TARGET_SHEET_POSITION).Text
+    Dim headerRowNum As Integer: headerRowNum = Val(Range(HEADER_ROW_NUM_POSITION).Text)
+    
+    '結果をクリア
+    Call ClearResultSheet
+    
+    '処理を実行
+    Dim fileName As String
+    Dim count As Integer: count = 1
+    If inputType = "フォルダ" Then
+        ' 最初のファイルを取得
+        fileName = Dir(inputPath & "*.xlsx") ' すべてのファイルを対象にする場合
+    
+        ' ファイルが見つからない場合は空の文字列が返る
+        Do While fileName <> ""
+            Call ExecuteFileRead(inputPath + fileName, targetSheet, headerRowNum, CStr(count))
+    
+            ' 次のファイルを取得
+            count = count + 1
+            fileName = Dir
+        Loop
+    
+    ElseIf inputType = "ファイル" Then
+    
+        'ファイル読み込みを実行
+        Call ExecuteFileRead(inputPath, targetSheet, headerRowNum, CStr(count))
+        
+    End If
+    
+End Sub
+
+'ファイル読み込みを実行
+Sub ExecuteFileRead(ByVal inputPath As String, ByVal targetSheet As String, ByVal headerRowNum As Integer, ByVal resultSheetName As String)
+
+    'シートの読み込み
+    Dim sheetDetail As New sheetDetail
+    Set sheetDetail = ReadSheet(inputPath, targetSheet, headerRowNum)
+    
+    '結果出力
+    Call OutputResultSheet(sheetDetail, resultSheetName)
+
+End Sub
+
+
+'結果シート出力
+Sub OutputResultSheet(ByVal sheetDetail As sheetDetail, ByVal sheetName As String)
+    
+    'テンプレートシート
+    Dim templateSheet As Worksheet
+    Set templateSheet = ThisWorkbook.Sheets(TEMPLATE_SHEET)
+    Dim resultSheet As Worksheet
+    
+    'シートのコピー
+    templateSheet.Copy After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count)
+    
+    '新しいシートに設定
+    Set resultSheet = ThisWorkbook.Sheets(ThisWorkbook.Sheets.count)
+    
+    'シート名の設定
+    resultSheet.Name = sheetName
+    
+    '設定値を出力
+    resultSheet.Range(FILE_NAME_POSITION).Value = sheetDetail.fileName
+    resultSheet.Range(ZOOM_VALUE_POSITION).Value = sheetDetail.Zoom
+    resultSheet.Range(ACTIVE_CELL_POSITION).Value = sheetDetail.ActiveCell
+    resultSheet.Range(PRINT_SIZE_POSITION).Value = sheetDetail.PrintSize
+    resultSheet.Range(PRINT_DIRECTION_POSITION).Value = sheetDetail.PrintDirection
+    
+    '各項目の内容を出力
+    Dim i As Integer
+    Dim startRow As Integer: startRow = Range(COLUMN_START_POSITION).Row
+    Dim startCol As Integer: startCol = Range(COLUMN_START_POSITION).Column
+    
+    For i = 1 To sheetDetail.ColumnDetails.count
+        
+        Dim colDetail As New ColumnDetail
+        Set colDetail = sheetDetail.ColumnDetails(i)
+        
+        resultSheet.Cells(startRow + i - 1, startCol).Value = colDetail.ColumnName
+        resultSheet.Cells(startRow + i - 1, startCol + 1).Value = colDetail.ColumnWidth
+        
+        '1行目
+        resultSheet.Cells(startRow + i - 1, startCol + 2).Value = colDetail.FirstRowCell.DisplayType
+        resultSheet.Cells(startRow + i - 1, startCol + 3).Value = colDetail.FirstRowCell.PlaceType
+        resultSheet.Cells(startRow + i - 1, startCol + 4).Value = colDetail.FirstRowCell.LineBreakType
+        resultSheet.Cells(startRow + i - 1, startCol + 5).Value = colDetail.FirstRowHeight
+        
+        '2行目
+        resultSheet.Cells(startRow + i - 1, startCol + 6).Value = colDetail.SecondRowCell.DisplayType
+        resultSheet.Cells(startRow + i - 1, startCol + 7).Value = colDetail.SecondRowCell.PlaceType
+        resultSheet.Cells(startRow + i - 1, startCol + 8).Value = colDetail.SecondRowCell.LineBreakType
+        resultSheet.Cells(startRow + i - 1, startCol + 9).Value = colDetail.SecondRowHeight
+    
+    Next i
+End Sub
+
+'シートの読み込み
+Function ReadSheet(ByVal filePath As String, ByVal sheetName As String, ByVal headerRowNum As Integer) As sheetDetail
+
+    Dim book As Workbook
+    Dim sheet As Worksheet
+    
+    Set book = Workbooks.Open(filePath)
+    
+    'シートの読み込み
+    If IsNull(sheetName) Or IsEmpty(sheetName) Or sheetName = "" Then
+        Set sheet = book.Sheets(1)
+    Else
+        Set sheet = book.Sheets(sheetName)
+    End If
+    
+    'ヘッダーを取得
+    Dim headers As Variant: headers = sheet.Range(sheet.Cells(headerRowNum, 1), sheet.Cells(headerRowNum, sheet.Cells(headerRowNum, sheet.Columns.count).End(xlToLeft).Column)).Value
+    
+    '項目の内容を取得
+    Dim colDetails As Collection
+    Set colDetails = New Collection
+    Dim i As Integer
+    For i = LBound(headers, 2) To UBound(headers, 2)
+    
+        Dim colDetail As ColumnDetail
+        Set colDetail = New ColumnDetail
+        
+        Dim address As Variant: address = sheet.Cells(headerRowNum, i).address
+        Dim cell As Range
+        Set cell = sheet.Range(address)
+        colDetail.ColumnName = cell.Value
+        colDetail.ColumnWidth = cell.ColumnWidth
+        
+        '1行目
+        Dim firstDataRow As Integer: firstDataRow = headerRowNum + 1
+        Set colDetail.FirstRowCell = GetCellDetail(sheet, firstDataRow, i)
+        colDetail.FirstRowHeight = sheet.Rows(firstDataRow).RowHeight
+        
+        
+        '2行目
+        Dim secondDataRow As Integer: secondDataRow = headerRowNum + 2
+        Set colDetail.SecondRowCell = GetCellDetail(sheet, secondDataRow, i)
+        colDetail.SecondRowHeight = sheet.Rows(secondDataRow).RowHeight
+        
+        colDetails.Add colDetail
+        
+    Next i
+    
+    'シートの設定内容
+    Dim sheetDetail As New sheetDetail
+    Set sheetDetail = New sheetDetail
+    sheetDetail.fileName = book.Name
+    sheetDetail.Zoom = GetZoom(book, sheet)
+    sheetDetail.ActiveCell = GetActiveCell(sheet)
+    sheetDetail.PrintSize = GetPrintSizeName(sheet.PageSetup.PaperSize)
+    sheetDetail.PrintDirection = sheet.PageSetup.Orientation
+    Set sheetDetail.ColumnDetails = colDetails
+    
+    Set ReadSheet = sheetDetail
+    
+    Dim jj As Integer: jj = colDetails.count
+    Dim j As Integer: j = sheetDetail.ColumnDetails.count
+    
+    book.Close SaveChanges:=False
+    
+End Function
+
+'セルの設定を取得
+Function GetCellDetail(ByVal sheet As Worksheet, ByVal rowNum As Integer, ByVal colNum As Integer) As cellDetail
+
+    'セルを取得
+    Dim address As Variant: address = sheet.Cells(rowNum, colNum).address
+    Dim cell As Range
+    Set cell = sheet.Range(address)
+    
+    Dim cellDetail As New cellDetail
+    Set cellDetail = New cellDetail
+    cellDetail.DisplayType = TypeName(cell.Value)
+    cellDetail.PlaceType = GetPlaceTypeName(cell.HorizontalAlignment)
+    cellDetail.LineBreakType = GetLineBreakTypeName(cell.WrapText, cell.ShrinkToFit)
+   
+    Set GetCellDetail = cellDetail
+
+End Function
+
+'配置タイプ名を取得
+Function GetPlaceTypeName(ByVal xlHAlign As String) As String
+
+    Select Case xlHAlign
+        Case xlHAlignLeft
+            GetPlaceTypeName = "左"
+        Case xlHAlignCenter
+            GetPlaceTypeName = "中央"
+        Case xlHAlignRight
+            GetPlaceTypeName = "右"
+        Case Else
+            GetPlaceTypeName = "-"
+    End Select
+
+End Function
+
+
+'改行タイプ名を取得
+Function GetLineBreakTypeName(ByVal isWrapText As Boolean, ByVal isShrinkToFit As Boolean) As String
+    
+    If isWrapText Then
+        GetLineBreakTypeName = "改行"
+    ElseIf isShrinkToFit Then
+        GetLineBreakTypeName = "縮小"
+    Else
+        GetLineBreakTypeName = "-"
+    End If
+    
+End Function
+
+'表示倍率を取得
+Function GetZoom(ByVal book As Workbook, ByVal sheet As Worksheet) As String
+
+    Dim window As Variant
+    For Each window In book.Windows
+        If Not Intersect(window.VisibleRange, sheet.UsedRange) Is Nothing Then
+            GetZoom = window.Zoom
+            Exit Function
+        End If
+    Next window
+    
+End Function
+
+'アクティブセルを取得
+Function GetActiveCell(ByVal sheet As Worksheet) As String
+    sheet.Activate
+    GetActiveCell = ActiveCell.address
+End Function
+
+'プリントサイズ名を取得
+Function GetPrintSizeName(ByVal PrintSize As String) As String
+    Select Case PrintSize
+        Case xlPaperA4
+            GetPrintSizeName = "A4"
+        Case xlPaperLetter
+            GetPrintSizeName = "Letter"
+        Case xlPaperLegal
+            GetPrintSizeName = "Legal"
+        Case Else
+            GetPrintSizeName = "Unknown"
+    End Select
+End Function
+
+'印刷の方向を取得
+Function GetPrintDirectionName(ByVal PrintDirection As String) As String
+    Select Case PrintDirection
+        Case xlPortrait
+            GetPrintDirectionName = "縦"
+        Case xlLandscape
+            GetPrintDirectionName = "横"
+        Case Else
+            GetPrintDirectionName = "-"
+    End Select
+
+End Function
+
+'結果シートを削除する
+Sub ClearResultSheet()
+
+    Dim sheet As Worksheet
+    Dim keepSheets As Variant
+    Dim sheetFound As Boolean
+    Dim i As Long
+    
+    ' 残したいシート名を配列に定義
+    keepSheets = Array(INPUT_SHEET, TEMPLATE_SHEET)
+    
+    ' シートごとにループ
+    For Each sheet In ThisWorkbook.Sheets
+        sheetFound = False
+        
+        ' 配列内のシートかどうか確認
+        For i = LBound(keepSheets) To UBound(keepSheets)
+            If sheet.Name = keepSheets(i) Then
+                sheetFound = True
+                Exit For
+            End If
+        Next i
+        
+        ' 配列にないシートを削除
+        If Not sheetFound Then
+            Application.DisplayAlerts = False ' 確認ダイアログを非表示
+            sheet.Delete
+            Application.DisplayAlerts = True ' ダイアログ表示を元に戻す
+        End If
+    Next sheet
+End Sub
+

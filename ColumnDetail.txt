@@ -1,0 +1,19 @@
+Option Explicit
+
+'項目名
+Public ColumnName As String
+
+'列幅
+Public ColumnWidth As Double
+
+'セル設定（１行目）
+Public FirstRowCell As cellDetail
+
+'行高（１行目）
+Public FirstRowHeight As Double
+
+'セル設定（２行目）
+Public SecondRowCell As cellDetail
+
+'行高（２行目）
+Public SecondRowHeight As Double
