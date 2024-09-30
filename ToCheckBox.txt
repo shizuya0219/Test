@@ -1,0 +1,36 @@
+Sub ToCheckBox()
+
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim chkBox As CheckBox
+    Dim filePath As String
+    
+    ' ファイルパスを指定
+    filePath = Application.GetOpenFilename(Excel Files (.xls; .xlsx), .xls; .xlsx)
+    
+    ' ファイルを開く
+    If filePath  False Then
+        Set wb = Workbooks.Open(filePath)
+        
+        ' 最初のシートを対象
+        Set ws = wb.Sheets(1)
+        
+        ' 使用されているセルすべてを対象
+        For Each cell In ws.UsedRange
+            If InStr(cell.Value, □)  0 Then
+                ' チェックボックスをセル内に挿入
+                Set chkBox = ws.CheckBoxes.Add(cell.Left, cell.Top, cell.Width, cell.Height)
+                chkBox.Caption =  ' キャプションを消す
+                chkBox.Value = xlOff ' チェックボックスをオフに初期化
+                cell.Value =  ' セルの値をクリア
+            End If
+        Next cell
+        
+        ' 処理が完了したらファイルを保存
+        wb.Save
+        wb.Close
+        
+    End If
+    
+End Sub
